@@ -1,0 +1,2 @@
+#!/bin/sh
+echo "hello-debdrop $(dpkg-query -W -f='${Version}' hello-debdrop 2>/dev/null || echo unknown)"

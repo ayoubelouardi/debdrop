@@ -1,0 +1,10 @@
+Package: hello-debdrop
+Version: 1.0.0
+Architecture: all
+Maintainer: DebDrop Test <test@example.invalid>
+Section: utils
+Priority: optional
+Installed-Size: 8
+Description: DebDrop test fixture
+ Installs a single script to /usr/bin. Used to exercise install,
+ upgrade, downgrade and remove in DebDrop.
