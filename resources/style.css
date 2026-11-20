@@ -1,0 +1,24 @@
+/* DebDrop: intentionally small. Everything else is stock libadwaita. */
+
+.drop-hover {
+  background: alpha(currentColor, 0.06);
+  border-radius: 12px;
+}
+
+.debdrop-log {
+  font-family: monospace;
+  font-size: 0.86em;
+}
+
+.debdrop-meta {
+  opacity: 0.65;
+}
+
+.debdrop-warning {
+  color: @warning_color;
+}
+
+.debdrop-path {
+  opacity: 0.55;
+  font-size: 0.9em;
+}

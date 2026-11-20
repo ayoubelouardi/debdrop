@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=DebDrop
+GenericName=Package Installer
+Comment=Inspect and install .deb packages
+Exec=debdrop %f
+Icon=debdrop
+Terminal=false
+Categories=System;PackageManager;
+MimeType=application/vnd.debian.binary-package;
+StartupNotify=true
+StartupWMClass=io.github.debdrop.DebDrop
