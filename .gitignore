@@ -2,3 +2,4 @@
 *.deb
 /fixtures/build/
 fixtures/*/DEBIAN/md5sums
+/content/
