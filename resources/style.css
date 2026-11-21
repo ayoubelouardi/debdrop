@@ -1,24 +1,58 @@
-/* DebDrop: intentionally small. Everything else is stock libadwaita. */
+/* DebDrop: Modern Libadwaita & Trending Developer Styling */
+
+/* Drop zone & Drag-and-Drop */
+.debdrop-drop-zone {
+  transition: all 200ms cubic-bezier(0.25, 1, 0.5, 1);
+}
 
 .drop-hover {
-  background: alpha(currentColor, 0.06);
+  background: alpha(@accent_bg_color, 0.12);
+  outline: 2px dashed @accent_color;
+  outline-offset: -8px;
+  border-radius: 16px;
+  transition: all 180ms ease-out;
+}
+
+/* Sleek Terminal / Log View */
+.debdrop-terminal {
+  background-color: alpha(@view_bg_color, 0.7);
+  border: 1px solid alpha(currentColor, 0.08);
   border-radius: 12px;
+  box-shadow: 0 2px 8px alpha(black, 0.06);
 }
 
 .debdrop-log {
-  font-family: monospace;
-  font-size: 0.86em;
+  font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", "SF Mono", Consolas, monospace;
+  font-size: 0.88em;
+  line-height: 1.45;
+  padding: 10px 14px;
 }
 
+/* Metadata & Path Styling */
 .debdrop-meta {
-  opacity: 0.65;
+  opacity: 0.7;
 }
 
+.debdrop-path {
+  opacity: 0.65;
+  font-family: "JetBrains Mono", "Fira Code", monospace;
+  font-size: 0.88em;
+}
+
+/* Warnings & Security Callouts */
 .debdrop-warning {
   color: @warning_color;
 }
 
-.debdrop-path {
-  opacity: 0.55;
-  font-size: 0.9em;
+.debdrop-security-box {
+  border-left: 3px solid @warning_color;
+}
+
+/* Chip Badges */
+.debdrop-chip {
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 0.8em;
+  font-weight: 600;
+  background: alpha(currentColor, 0.08);
 }

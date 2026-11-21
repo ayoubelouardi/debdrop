@@ -206,6 +206,7 @@ impl PackageCard {
         let warning = gtk::Image::from_icon_name("dialog-warning-symbolic");
         warning.add_css_class("debdrop-warning");
         scripts_row.add_prefix(&warning);
+        scripts_row.add_css_class("debdrop-security-box");
         scripts_group.add(&scripts_row);
         let scripts_button = gtk::Button::with_label("View…");
         scripts_button.add_css_class("flat");

@@ -31,6 +31,7 @@ impl LogView {
             .vexpand(true)
             .build();
         scrolled.add_css_class("card");
+        scrolled.add_css_class("debdrop-terminal");
 
         Self { scrolled, buffer }
     }

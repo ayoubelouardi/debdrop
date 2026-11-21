@@ -82,6 +82,7 @@ impl AppWindow {
             .hexpand(true)
             .vexpand(true)
             .build();
+        empty.add_css_class("debdrop-drop-zone");
 
         let card = PackageCard::new();
         let card_page = card.page.clone();

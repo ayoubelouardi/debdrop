@@ -8,6 +8,7 @@ privilege prompt.
 
 | Document | What it answers |
 | --- | --- |
+| [roadmap.md](roadmap.md) | **Product & Engineering Roadmap (v0.1 → v1.0)** |
 | [product.md](product.md) | What v1 does, who it is for, what it deliberately does not do |
 | [architecture.md](architecture.md) | Modules, data flow, external commands, error taxonomy |
 | [security.md](security.md) | Trust model, privilege boundary, what we refuse to do |

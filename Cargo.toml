@@ -3,8 +3,12 @@ name = "debdrop"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.85"
-description = "Inspect and install local .deb packages"
+description = "Blazingly fast, transparent .deb package inspector and installer for Linux"
 license = "MIT"
+repository = "https://github.com/debdrop/debdrop"
+homepage = "https://github.com/debdrop/debdrop"
+keywords = ["debian", "deb", "package-manager", "gtk4", "libadwaita"]
+categories = ["gui", "command-line-utilities", "development-tools"]
 
 [dependencies]
 gtk = { package = "gtk4", version = "0.11", features = ["v4_18"] }

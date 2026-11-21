@@ -184,18 +184,21 @@ needed for it was not available, so the announcement is purely visual.
 ## CSS surface
 
 `resources/style.css` is embedded with `include_str!` and loaded at application
-priority. The only custom classes are:
+priority. Custom classes are:
 
 ```css
-.drop-hover    { background: alpha(currentColor, 0.06); border-radius: 12px; }
-.debdrop-log   { font-family: monospace; font-size: 0.86em; }
-.debdrop-meta  { opacity: 0.65; }
-.debdrop-warning { color: @warning_color; }
-.debdrop-path  { opacity: 0.55; font-size: 0.9em; }
+.debdrop-drop-zone   { transition: all 200ms cubic-bezier(0.25, 1, 0.5, 1); }
+.drop-hover          { background: alpha(@accent_bg_color, 0.12); outline: 2px dashed @accent_color; outline-offset: -8px; border-radius: 16px; }
+.debdrop-terminal    { background-color: alpha(@view_bg_color, 0.7); border: 1px solid alpha(currentColor, 0.08); border-radius: 12px; }
+.debdrop-log         { font-family: "JetBrains Mono", "Fira Code", monospace; font-size: 0.88em; line-height: 1.45; }
+.debdrop-meta        { opacity: 0.7; }
+.debdrop-warning     { color: @warning_color; }
+.debdrop-security-box { border-left: 3px solid @warning_color; }
+.debdrop-path        { opacity: 0.65; font-family: "JetBrains Mono", monospace; font-size: 0.88em; }
+.debdrop-chip        { padding: 2px 8px; border-radius: 10px; font-size: 0.8em; font-weight: 600; }
 ```
 
-`.drop-hover` is toggled on the stack by `GtkDropTarget::enter`/`leave`. There
-is no `.warning-row` class. Everything else is stock libadwaita.
+`.drop-hover` is toggled on the stack by `GtkDropTarget::enter`/`leave`. Everything else is stock libadwaita.
 
 ## Drag and drop
 
