@@ -41,6 +41,15 @@ impl Dep {
     }
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct DesktopInfo {
+    pub display_name: Option<String>,
+    pub generic_name: Option<String>,
+    pub icon_name: Option<String>,
+    pub icon_path: Option<PathBuf>,
+    pub exec: Option<String>,
+}
+
 pub struct DebInfo {
     pub path: PathBuf,
     pub package: String,
@@ -49,6 +58,7 @@ pub struct DebInfo {
     pub section: Option<String>,
     pub priority: Option<String>,
     pub maintainer: Option<String>,
+    pub homepage: Option<String>,
     pub installed_size_kb: Option<u64>,
     pub description: String,
     pub description_long: Option<String>,
@@ -56,6 +66,8 @@ pub struct DebInfo {
     pub recommends: Vec<Dep>,
     pub scripts: Vec<String>,
     pub has_debconf: bool,
+    pub desktop: Option<DesktopInfo>,
+    pub files: Vec<String>,
     ctrl: TempDir,
 }
 
@@ -86,6 +98,29 @@ impl DebInfo {
                 format!("{kb} KiB")
             }
         })
+    }
+
+    /// Primary display title: desktop Name if available, otherwise package name.
+    pub fn display_title(&self) -> String {
+        self.desktop
+            .as_ref()
+            .and_then(|d| d.display_name.clone())
+            .unwrap_or_else(|| self.package.clone())
+    }
+
+    /// Intelligent fallback symbolic icon based on package section.
+    pub fn fallback_icon(&self) -> &'static str {
+        match self.section.as_deref().unwrap_or("").trim() {
+            "admin" | "utils" | "shells" => "utilities-terminal-symbolic",
+            "devel" | "libdevel" | "libs" => "applications-development-symbolic",
+            "net" | "web" => "applications-internet-symbolic",
+            "graphics" => "applications-graphics-symbolic",
+            "sound" | "video" => "applications-multimedia-symbolic",
+            "games" => "applications-games-symbolic",
+            "editors" => "accessories-text-editor-symbolic",
+            "doc" => "help-browser-symbolic",
+            _ => "package-x-generic",
+        }
     }
 }
 
@@ -190,6 +225,11 @@ pub fn load(path: &Path) -> Result<DebInfo, DebError> {
     scripts.sort();
     let has_debconf = ctrl.path().join("config").exists() || ctrl.path().join("templates").exists();
 
+    // Inspect data payload file list and desktop integration
+    let raw_files = list_archive_members(&path);
+    let files = clean_member_paths(&raw_files);
+    let desktop = extract_desktop_and_icon(&path, &raw_files, ctrl.path());
+
     Ok(DebInfo {
         path,
         package,
@@ -198,6 +238,7 @@ pub fn load(path: &Path) -> Result<DebInfo, DebError> {
         section: fields.get("section").cloned(),
         priority: fields.get("priority").cloned(),
         maintainer: fields.get("maintainer").cloned(),
+        homepage: fields.get("homepage").cloned(),
         installed_size_kb: fields
             .get("installed-size")
             .and_then(|v| v.trim().parse().ok()),
@@ -207,6 +248,8 @@ pub fn load(path: &Path) -> Result<DebInfo, DebError> {
         recommends: parse_dep_field(fields.get("recommends").map(String::as_str).unwrap_or("")),
         scripts,
         has_debconf,
+        desktop,
+        files,
         ctrl,
     })
 }
@@ -221,6 +264,169 @@ fn run_dpkg_deb(args: &[&str], path: &Path) -> Result<std::process::Output, DebE
             DebError::Io(format!("dpkg-deb: {e}"))
         }
     })
+}
+
+fn list_archive_members(path: &Path) -> Vec<String> {
+    let Ok(out) = run_dpkg_deb(&["-c"], path) else {
+        return Vec::new();
+    };
+    if !out.status.success() {
+        return Vec::new();
+    }
+    let text = String::from_utf8_lossy(&out.stdout);
+    let mut members = Vec::new();
+    for line in text.lines() {
+        if let Some(m) = parse_archive_line_path(line) {
+            members.push(m);
+        }
+    }
+    members
+}
+
+fn parse_archive_line_path(line: &str) -> Option<String> {
+    let mut parts = line.split_whitespace();
+    parts.next()?; // permissions
+    parts.next()?; // owner/group
+    parts.next()?; // size
+    parts.next()?; // date
+    parts.next()?; // time
+    let path = parts.collect::<Vec<_>>().join(" ");
+    if path.is_empty() {
+        None
+    } else {
+        Some(path)
+    }
+}
+
+fn clean_member_paths(raw: &[String]) -> Vec<String> {
+    raw.iter()
+        .map(|p| {
+            let s = p.strip_prefix("./").unwrap_or(p);
+            format!("/{s}")
+        })
+        .collect()
+}
+
+fn extract_archive_member(deb_path: &Path, member: &str, dest_dir: &Path) -> Option<PathBuf> {
+    let mut cmd1 = Command::new("dpkg-deb");
+    cmd1.env("LC_ALL", "C").args(["--fsys-tarfile"]).arg(deb_path);
+    cmd1.stdout(std::process::Stdio::piped());
+    let mut child1 = cmd1.spawn().ok()?;
+
+    let mut cmd2 = Command::new("tar");
+    cmd2.env("LC_ALL", "C")
+        .args(["-C"])
+        .arg(dest_dir)
+        .args(["-xf", "-"])
+        .arg(member);
+
+    if let Some(stdout) = child1.stdout.take() {
+        cmd2.stdin(stdout);
+    }
+
+    let child2 = cmd2.output().ok()?;
+    let _ = child1.wait();
+    if !child2.status.success() {
+        return None;
+    }
+
+    let rel = member.strip_prefix("./").unwrap_or(member);
+    let extracted = dest_dir.join(rel);
+    if extracted.exists() {
+        Some(extracted)
+    } else {
+        None
+    }
+}
+
+fn extract_desktop_and_icon(
+    deb_path: &Path,
+    raw_files: &[String],
+    dest_dir: &Path,
+) -> Option<DesktopInfo> {
+    // 1. Locate .desktop file
+    let desktop_member = raw_files.iter().find(|p| {
+        (p.contains("usr/share/applications/") || p.contains("/applications/"))
+            && p.ends_with(".desktop")
+    })?;
+
+    let desktop_file = extract_archive_member(deb_path, desktop_member, dest_dir)?;
+    let content = fs::read_to_string(&desktop_file).ok()?;
+    let mut desktop = parse_desktop_text(&content);
+
+    // 2. Search for bundled icon if specified
+    if let Some(icon_name) = &desktop.icon_name {
+        let is_abs_icon = icon_name.starts_with('/');
+        let icon_member = raw_files.iter().find(|p| {
+            if is_abs_icon {
+                p.ends_with(icon_name.as_str())
+            } else {
+                let stem_match = p.contains(&format!("/{icon_name}."))
+                    || p.ends_with(&format!("/{icon_name}.png"))
+                    || p.ends_with(&format!("/{icon_name}.svg"))
+                    || p.ends_with(&format!("/{icon_name}.xpm"));
+                stem_match && (p.contains("pixmaps") || p.contains("icons"))
+            }
+        });
+
+        if let Some(icon_member) = icon_member {
+            if let Some(icon_file) = extract_archive_member(deb_path, icon_member, dest_dir) {
+                desktop.icon_path = Some(icon_file);
+            }
+        }
+    }
+
+    Some(desktop)
+}
+
+pub fn parse_desktop_text(text: &str) -> DesktopInfo {
+    let mut in_desktop_entry = false;
+    let mut name = None;
+    let mut generic_name = None;
+    let mut icon_name = None;
+    let mut exec = None;
+
+    for line in text.lines() {
+        let trimmed = line.trim();
+        if trimmed == "[Desktop Entry]" {
+            in_desktop_entry = true;
+            continue;
+        } else if trimmed.starts_with('[') && trimmed.ends_with(']') {
+            in_desktop_entry = false;
+            continue;
+        }
+        if !in_desktop_entry {
+            continue;
+        }
+        if let Some((k, v)) = trimmed.split_once('=') {
+            let key = k.trim();
+            let val = v.trim();
+            match key {
+                "Name" if name.is_none() => name = Some(val.to_string()),
+                "GenericName" if generic_name.is_none() => generic_name = Some(val.to_string()),
+                "Icon" if icon_name.is_none() => icon_name = Some(val.to_string()),
+                "Exec" if exec.is_none() => {
+                    let clean = val
+                        .split_whitespace()
+                        .filter(|part| !part.starts_with('%'))
+                        .collect::<Vec<_>>()
+                        .join(" ");
+                    if !clean.is_empty() {
+                        exec = Some(clean);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    DesktopInfo {
+        display_name: name,
+        generic_name,
+        icon_name,
+        icon_path: None,
+        exec,
+    }
 }
 
 fn require(fields: &BTreeMap<String, String>, key: &str) -> Result<String, DebError> {
@@ -379,6 +585,49 @@ mod tests {
     }
 
     #[test]
+    fn parses_desktop_entry() {
+        let text = r#"
+[Desktop Entry]
+Type=Application
+Name=Test Suite App
+GenericName=Code Editor
+Icon=test-suite-icon
+Exec=test-app %F --verbose
+Categories=Development;IDE;
+"#;
+        let d = parse_desktop_text(text);
+        assert_eq!(d.display_name.as_deref(), Some("Test Suite App"));
+        assert_eq!(d.generic_name.as_deref(), Some("Code Editor"));
+        assert_eq!(d.icon_name.as_deref(), Some("test-suite-icon"));
+        assert_eq!(d.exec.as_deref(), Some("test-app --verbose"));
+    }
+
+    #[test]
+    fn selects_fallback_icons() {
+        let info = DebInfo {
+            path: PathBuf::new(),
+            package: "foo".into(),
+            version: "1.0".into(),
+            architecture: "amd64".into(),
+            section: Some("utils".into()),
+            priority: None,
+            maintainer: None,
+            homepage: None,
+            installed_size_kb: None,
+            description: "".into(),
+            description_long: None,
+            depends: vec![],
+            recommends: vec![],
+            scripts: vec![],
+            has_debconf: false,
+            desktop: None,
+            files: vec![],
+            ctrl: TempDir::new().unwrap(),
+        };
+        assert_eq!(info.fallback_icon(), "utilities-terminal-symbolic");
+    }
+
+    #[test]
     fn loads_a_real_fixture_when_present() {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/build/hello-debdrop_1.0.0_all.deb");
@@ -403,5 +652,25 @@ mod tests {
         assert!(info.scripts.contains(&"postinst".to_string()));
         assert!(info.script_text("postinst").unwrap().contains("#!/bin/sh"));
         assert!(!info.has_debconf);
+        assert!(!info.files.is_empty());
+    }
+
+    #[test]
+    fn loads_gui_fixture_with_desktop_and_icon() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("fixtures/build/hello-debdrop-gui_1.0.0_all.deb");
+        if !path.exists() {
+            return;
+        }
+        let info = load(&path).expect("gui fixture should load");
+        assert_eq!(info.package, "hello-debdrop-gui");
+        assert_eq!(info.homepage.as_deref(), Some("https://debdrop.example.com"));
+        let desktop = info.desktop.as_ref().expect("desktop info should be parsed");
+        assert_eq!(desktop.display_name.as_deref(), Some("Hello DebDrop GUI"));
+        assert_eq!(desktop.generic_name.as_deref(), Some("Sample Graphical Utility"));
+        assert_eq!(desktop.icon_name.as_deref(), Some("hello-debdrop-icon"));
+        assert!(desktop.icon_path.is_some(), "icon should be extracted to tempdir");
+        assert!(desktop.icon_path.as_ref().unwrap().exists());
+        assert_eq!(info.display_title(), "Hello DebDrop GUI");
     }
 }

@@ -60,5 +60,28 @@ EOF
 chmod 0755 "$dir/DEBIAN/config"
 dpkg-deb --build --root-owner-group "$dir" "$OUT/debdrop-debconf_1.0.0_all.deb" >/dev/null
 
+# GUI app variant: desktop file, icon, and Homepage in control.
+dir="$OUT/hello-debdrop-gui_1.0.0"
+rm -rf "$dir"
+cp -a "$SRC" "$dir"
+sed -i "s/^Package:.*/Package: hello-debdrop-gui/" "$dir/DEBIAN/control"
+echo "Homepage: https://debdrop.example.com" >> "$dir/DEBIAN/control"
+mkdir -p "$dir/usr/share/applications" "$dir/usr/share/pixmaps"
+cat > "$dir/usr/share/applications/hello-debdrop.desktop" <<'EOF'
+[Desktop Entry]
+Type=Application
+Name=Hello DebDrop GUI
+GenericName=Sample Graphical Utility
+Icon=hello-debdrop-icon
+Exec=hello-debdrop
+Categories=Utility;GTK;
+EOF
+cat > "$dir/usr/share/pixmaps/hello-debdrop-icon.svg" <<'EOF'
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" rx="14" fill="#3584e4"/><circle cx="32" cy="32" r="16" fill="#ffffff"/></svg>
+EOF
+chmod 0755 "$dir/DEBIAN"
+chmod 0644 "$dir/usr/share/applications/hello-debdrop.desktop" "$dir/usr/share/pixmaps/hello-debdrop-icon.svg"
+dpkg-deb --build --root-owner-group "$dir" "$OUT/hello-debdrop-gui_1.0.0_all.deb" >/dev/null
+
 echo "built:"
 ls -1 "$OUT"/*.deb

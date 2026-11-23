@@ -24,6 +24,21 @@ cargo build --release     # target/release/debdrop
 cargo fmt --check && cargo clippy -- -D warnings
 ```
 
+Or use the POSIX `/bin/sh` developer utility suite:
+
+```sh
+./utilities.sh clean              # Clean target/, fixtures/build/, and temporary files
+./utilities.sh test [filter]      # Rebuild fixtures and run cargo test
+./utilities.sh check             # Fast cargo check
+./utilities.sh build             # Compile optimized release binary
+./utilities.sh run [file.deb]    # Run DebDrop in dev mode
+./utilities.sh fixtures          # Rebuild disposable test fixtures
+./utilities.sh inspect <file.deb> # Terminal inspection of .deb metadata, scripts, and desktop entries
+./utilities.sh simulate <file.deb># Unprivileged APT transaction simulation (apt-get -s)
+./utilities.sh size              # Report stripped binary size
+./utilities.sh ci                # Full clean, fixture build, check, test, and release compile
+```
+
 Run under sway like any Wayland client; nothing about the app is compositor
 specific. For widget debugging:
 

@@ -12,7 +12,7 @@ use crate::runner;
 pub const APT_GET: &str = "/usr/bin/apt-get";
 pub const PKEXEC: &str = "/usr/bin/pkexec";
 pub const ENV: &str = "/usr/bin/env";
-const SIMULATE_TIMEOUT: Duration = Duration::from_secs(45);
+const SIMULATE_TIMEOUT: Duration = Duration::from_secs(120);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Action {
@@ -47,7 +47,7 @@ pub struct Plan {
 impl Plan {
     pub fn headline(&self) -> String {
         if self.timed_out {
-            return "Could not resolve dependencies (timed out)".into();
+            return "Could not resolve dependencies (timed out after 2 minutes — try refreshing package lists with apt update)".into();
         }
         if self.stale_lists {
             return "Package lists may be out of date".into();
@@ -450,5 +450,72 @@ Need to get 1,234 kB of archives.\nAfter this operation, 4,567 kB of additional 
         assert!(re.iter().any(|a| a == "--reinstall"));
         assert_eq!(plain[0], PKEXEC);
         assert_eq!(plain.last().unwrap(), "/tmp/x.deb");
+    }
+
+    #[test]
+    fn timed_out_plan_headline_includes_hint() {
+        let plan = parse_simulate("", "", 1, true);
+        let hl = plan.headline();
+        assert!(hl.contains("timed out"), "headline should mention timed out: {hl}");
+        assert!(hl.contains("2 minutes"), "headline should include duration: {hl}");
+        assert!(hl.contains("apt update"), "headline should suggest apt update: {hl}");
+        assert!(!plan.ok, "timed out plan must not be ok");
+    }
+
+    #[test]
+    fn classify_locked_dpkg_frontend() {
+        let (class, hint) =
+            classify(100, "E: Could not get lock /var/lib/dpkg/lock-frontend");
+        assert_eq!(class, ErrorClass::Locked);
+        assert!(hint.contains("busy"), "hint should mention busy: {hint}");
+    }
+
+    #[test]
+    fn classify_disk_full() {
+        let (class, hint) = classify(100, "E: No space left on device");
+        assert_eq!(class, ErrorClass::DiskFull);
+        assert!(hint.to_lowercase().contains("disk space"), "hint: {hint}");
+    }
+
+    #[test]
+    fn action_for_reinstall_when_same_version() {
+        let state = InstalledState {
+            installed: true,
+            version: Some("1.2.3".into()),
+            note: None,
+        };
+        let action = action_for("1.2.3", &state);
+        assert_eq!(action, Action::Reinstall);
+    }
+
+    #[test]
+    fn action_for_upgrade_when_newer() {
+        let state = InstalledState {
+            installed: true,
+            version: Some("1.0.0".into()),
+            note: None,
+        };
+        let action = action_for("2.0.0", &state);
+        assert_eq!(action, Action::Upgrade);
+    }
+
+    #[test]
+    fn action_for_install_when_not_installed() {
+        let state = InstalledState { installed: false, version: None, note: None };
+        let action = action_for("1.0.0", &state);
+        assert_eq!(action, Action::Install);
+    }
+
+    #[test]
+    fn classify_bad_archive() {
+        let (class, _) = classify(2, "dpkg-deb: error: this is not a debian format archive");
+        assert_eq!(class, ErrorClass::BadArchive);
+    }
+
+    #[test]
+    fn classify_unknown_gives_exit_code_in_hint() {
+        let (class, hint) = classify(99, "some unexpected error");
+        assert_eq!(class, ErrorClass::Unknown);
+        assert!(hint.contains("99"), "hint should include exit code: {hint}");
     }
 }

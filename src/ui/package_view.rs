@@ -111,15 +111,30 @@ impl Deps {
 
 pub struct PackageCard {
     pub page: adw::PreferencesPage,
-    title_row: adw::ActionRow,
+
+    // Hero Header
+    app_icon: gtk::Image,
+    hero_title: gtk::Label,
+    hero_pkg: gtk::Label,
+    version_chip: gtk::Label,
+    arch_chip: gtk::Label,
+    size_chip: gtk::Label,
+    status_chip: gtk::Label,
+
+    // Details rows
     file_row: adw::ActionRow,
     maintainer_row: adw::ActionRow,
+    homepage_row: adw::ActionRow,
+    homepage_button: gtk::Button,
+    files_row: adw::ActionRow,
+    files_button: gtk::Button,
     description_row: adw::ActionRow,
-    status_row: adw::ActionRow,
     debconf_row: adw::ActionRow,
+
     deps: Rc<Deps>,
     scripts_group: adw::PreferencesGroup,
     scripts_row: adw::ActionRow,
+    scripts_icon: gtk::Image,
     scripts_button: gtk::Button,
     path: Rc<RefCell<String>>,
 }
@@ -128,12 +143,59 @@ impl PackageCard {
     pub fn new() -> Self {
         let page = adw::PreferencesPage::new();
 
-        let group = adw::PreferencesGroup::new();
-        group.set_title("Package");
+        // 1. Hero Header Group
+        let hero_group = adw::PreferencesGroup::new();
+        let hero_box = gtk::Box::new(gtk::Orientation::Horizontal, 16);
+        hero_box.add_css_class("debdrop-hero");
 
-        let title_row = adw::ActionRow::builder().title("…").build();
-        title_row.set_title_lines(1);
-        title_row.set_subtitle_lines(1);
+        let app_icon = gtk::Image::new();
+        app_icon.set_pixel_size(64);
+        app_icon.add_css_class("debdrop-app-icon");
+        hero_box.append(&app_icon);
+
+        let hero_text_box = gtk::Box::new(gtk::Orientation::Vertical, 4);
+        hero_text_box.set_hexpand(true);
+        hero_text_box.set_valign(gtk::Align::Center);
+
+        let hero_title = gtk::Label::new(None);
+        hero_title.add_css_class("title-1");
+        hero_title.set_halign(gtk::Align::Start);
+        hero_title.set_wrap(true);
+        hero_text_box.append(&hero_title);
+
+        let hero_pkg = gtk::Label::new(None);
+        hero_pkg.add_css_class("dim-label");
+        hero_pkg.set_halign(gtk::Align::Start);
+        hero_text_box.append(&hero_pkg);
+
+        let chips_box = gtk::Box::new(gtk::Orientation::Horizontal, 6);
+        chips_box.set_margin_top(4);
+
+        let version_chip = gtk::Label::new(None);
+        version_chip.add_css_class("debdrop-chip");
+
+        let arch_chip = gtk::Label::new(None);
+        arch_chip.add_css_class("debdrop-chip");
+
+        let size_chip = gtk::Label::new(None);
+        size_chip.add_css_class("debdrop-chip");
+
+        let status_chip = gtk::Label::new(None);
+        status_chip.add_css_class("debdrop-chip");
+        status_chip.add_css_class("debdrop-status-ready");
+
+        chips_box.append(&version_chip);
+        chips_box.append(&arch_chip);
+        chips_box.append(&size_chip);
+        chips_box.append(&status_chip);
+
+        hero_text_box.append(&chips_box);
+        hero_box.append(&hero_text_box);
+        hero_group.add(&hero_box);
+
+        // 2. Details Group
+        let group = adw::PreferencesGroup::new();
+        group.set_title("Package Details");
 
         let file_row = adw::ActionRow::builder().title("File").build();
         file_row.set_subtitle_lines(2);
@@ -155,18 +217,29 @@ impl PackageCard {
                 button.set_tooltip_text(Some("Copied"));
             });
         }
-        group.set_header_suffix(Some(&copy_button));
+        file_row.add_suffix(&copy_button);
 
         let maintainer_row = adw::ActionRow::builder().title("Maintainer").build();
         maintainer_row.set_subtitle_lines(2);
 
-        let description_row = adw::ActionRow::builder().title("Description").build();
-        description_row.set_subtitle_lines(6);
+        let homepage_row = adw::ActionRow::builder().title("Homepage").build();
+        homepage_row.set_subtitle_lines(1);
+        let homepage_button = gtk::Button::from_icon_name("web-browser-symbolic");
+        homepage_button.add_css_class("flat");
+        homepage_button.set_valign(gtk::Align::Center);
+        homepage_button.set_tooltip_text(Some("Open homepage in browser"));
+        homepage_row.add_suffix(&homepage_button);
 
-        let status_row = adw::ActionRow::builder()
-            .title("Status")
-            .subtitle("Checking installed state…")
-            .build();
+        let files_row = adw::ActionRow::builder().title("Contents").build();
+        files_row.set_subtitle_lines(1);
+        let files_button = gtk::Button::with_label("Inspect…");
+        files_button.add_css_class("flat");
+        files_button.set_valign(gtk::Align::Center);
+        files_button.set_tooltip_text(Some("View files installed by this package"));
+        files_row.add_suffix(&files_button);
+
+        let description_row = adw::ActionRow::builder().title("Description").build();
+        description_row.set_subtitle_lines(8);
 
         let debconf_row = adw::ActionRow::builder()
             .title("Configuration")
@@ -174,19 +247,19 @@ impl PackageCard {
             .build();
         debconf_row.set_subtitle_lines(2);
 
-        group.add(&title_row);
         group.add(&file_row);
         group.add(&maintainer_row);
+        group.add(&homepage_row);
+        group.add(&files_row);
         group.add(&description_row);
-        group.add(&status_row);
         group.add(&debconf_row);
 
         for row in [
-            &title_row,
             &file_row,
             &maintainer_row,
+            &homepage_row,
+            &files_row,
             &description_row,
-            &status_row,
             &debconf_row,
         ] {
             row.set_can_focus(false);
@@ -195,41 +268,51 @@ impl PackageCard {
 
         let deps = Deps::new();
 
+        // 3. Security & Scripts Group
         let scripts_group = adw::PreferencesGroup::new();
-        scripts_group.set_title("Maintainer scripts");
-        let scripts_row = adw::ActionRow::builder()
-            .title("Runs as root during installation")
-            .build();
+        scripts_group.set_title("Security & Scripts");
+        let scripts_row = adw::ActionRow::builder().title("Maintainer scripts").build();
         scripts_row.set_subtitle_lines(2);
         scripts_row.set_can_focus(false);
         scripts_row.set_focusable(false);
-        let warning = gtk::Image::from_icon_name("dialog-warning-symbolic");
-        warning.add_css_class("debdrop-warning");
-        scripts_row.add_prefix(&warning);
-        scripts_row.add_css_class("debdrop-security-box");
-        scripts_group.add(&scripts_row);
+
+        let scripts_icon = gtk::Image::from_icon_name("dialog-warning-symbolic");
+        scripts_row.add_prefix(&scripts_icon);
+
         let scripts_button = gtk::Button::with_label("View…");
         scripts_button.add_css_class("flat");
         scripts_button.set_valign(gtk::Align::Center);
         scripts_button.set_tooltip_text(Some("Show the scripts that will run as root"));
         scripts_group.set_header_suffix(Some(&scripts_button));
-        scripts_group.set_visible(false);
 
+        scripts_group.add(&scripts_row);
+
+        page.add(&hero_group);
         page.add(&group);
         page.add(&deps.group);
         page.add(&scripts_group);
 
         Self {
             page,
-            title_row,
+            app_icon,
+            hero_title,
+            hero_pkg,
+            version_chip,
+            arch_chip,
+            size_chip,
+            status_chip,
             file_row,
             maintainer_row,
+            homepage_row,
+            homepage_button,
+            files_row,
+            files_button,
             description_row,
-            status_row,
             debconf_row,
             deps,
             scripts_group,
             scripts_row,
+            scripts_icon,
             scripts_button,
             path,
         }
@@ -239,22 +322,62 @@ impl PackageCard {
         self.scripts_button.clone()
     }
 
+    pub fn homepage_button(&self) -> gtk::Button {
+        self.homepage_button.clone()
+    }
+
+    pub fn files_button(&self) -> gtk::Button {
+        self.files_button.clone()
+    }
+
     pub fn show(&self, info: &deb::DebInfo) {
-        self.title_row.set_title(&markup(&info.package));
-        let mut meta = vec![markup(&info.architecture)];
+        // App Icon
+        if let Some(desktop) = &info.desktop {
+            if let Some(path) = &desktop.icon_path {
+                self.app_icon.set_from_file(Some(path));
+            } else if let Some(name) = &desktop.icon_name {
+                self.app_icon.set_icon_name(Some(name));
+            } else {
+                self.app_icon
+                    .set_icon_name(Some(info.fallback_icon()));
+            }
+        } else {
+            self.app_icon
+                .set_icon_name(Some(info.fallback_icon()));
+        }
+
+        // Hero Titles
+        let title = info.display_title();
+        self.hero_title.set_text(&title);
+        let mut meta_sub = vec![info.architecture.clone()];
         if let Some(section) = &info.section {
-            meta.push(markup(section));
+            meta_sub.push(section.clone());
         }
         if let Some(priority) = &info.priority {
-            meta.push(markup(&format!("{priority} priority")));
+            meta_sub.push(priority.clone());
         }
-        if let Some(size) = info.display_size() {
-            meta.push(markup(&format!("{size} installed")));
+        if title != info.package {
+            self.hero_pkg
+                .set_text(&format!("{} · {}", info.package, meta_sub.join(" · ")));
+        } else {
+            self.hero_pkg.set_text(&meta_sub.join(" · "));
         }
-        self.title_row.set_subtitle(&meta.join(" · "));
-        self.title_row
-            .set_tooltip_text(Some(&info.path.display().to_string()));
 
+        // Badges
+        self.version_chip.set_text(&format!("v{}", info.version));
+        self.arch_chip.set_text(&info.architecture);
+        if let Some(size) = info.display_size() {
+            self.size_chip.set_text(&size);
+            self.size_chip.set_visible(true);
+        } else {
+            self.size_chip.set_visible(false);
+        }
+
+        self.status_chip.set_text("Checking…");
+        self.status_chip
+            .set_css_classes(&["debdrop-chip", "debdrop-status-ready"]);
+
+        // Details rows
         self.file_row
             .set_subtitle(&markup(&info.path.display().to_string()));
         *self.path.borrow_mut() = info.path.display().to_string();
@@ -266,6 +389,18 @@ impl PackageCard {
             }
             None => self.maintainer_row.set_visible(false),
         }
+
+        match &info.homepage {
+            Some(url) => {
+                self.homepage_row.set_subtitle(&markup(url));
+                self.homepage_row.set_visible(true);
+            }
+            None => self.homepage_row.set_visible(false),
+        }
+
+        let file_count = info.files.len();
+        self.files_row
+            .set_subtitle(&format!("{file_count} files installed in system"));
 
         let description = info
             .description_long
@@ -280,33 +415,54 @@ impl PackageCard {
             self.description_row.set_visible(true);
         }
 
+        // Security indicator
         if info.scripts.is_empty() {
-            self.scripts_group.set_visible(false);
+            self.scripts_icon
+                .set_icon_name(Some("emblem-ok-symbolic"));
+            self.scripts_icon
+                .set_css_classes(&["debdrop-security-clean"]);
+            self.scripts_row
+                .set_css_classes(&["debdrop-security-clean-box"]);
+            self.scripts_row.set_title("Clean package");
+            self.scripts_row
+                .set_subtitle("No root maintainer scripts detected");
+            self.scripts_button.set_visible(false);
+            self.scripts_group.set_visible(true);
         } else {
+            self.scripts_icon
+                .set_icon_name(Some("dialog-warning-symbolic"));
+            self.scripts_icon.set_css_classes(&["debdrop-warning"]);
+            self.scripts_row.set_css_classes(&["debdrop-security-box"]);
             self.scripts_row
                 .set_title(&markup(&info.scripts.join(", ")));
             self.scripts_row
                 .set_subtitle("Runs with root privileges during installation");
+            self.scripts_button.set_visible(true);
             self.scripts_group.set_visible(true);
         }
-        self.debconf_row.set_visible(info.has_debconf);
 
-        self.status_row.set_subtitle("Checking installed state…");
+        self.debconf_row.set_visible(info.has_debconf);
         self.deps.reset("Checking dependencies…");
     }
 
-    pub fn set_installed(&self, state: &apt::InstalledState) {
-        let text = if state.installed {
-            format!(
-                "Installed {}",
-                state.version.as_deref().unwrap_or("(unknown version)")
-            )
+    pub fn set_installed(&self, state: &apt::InstalledState, action: apt::Action) {
+        let (badge_text, badge_class) = if state.installed {
+            match action {
+                apt::Action::Upgrade => ("Upgrade Available".to_string(), "debdrop-status-upgrade"),
+                apt::Action::Downgrade => {
+                    ("Downgrade Available".to_string(), "debdrop-status-downgrade")
+                }
+                _ => ("Installed".to_string(), "debdrop-status-installed"),
+            }
         } else if let Some(note) = &state.note {
-            format!("Not installed ({note})")
+            (format!("Not installed ({note})"), "debdrop-status-ready")
         } else {
-            "Not installed".to_string()
+            ("Ready to Install".to_string(), "debdrop-status-ready")
         };
-        self.status_row.set_subtitle(&markup(&text));
+
+        self.status_chip.set_text(&badge_text);
+        self.status_chip
+            .set_css_classes(&["debdrop-chip", badge_class]);
     }
 
     pub fn set_plan(&self, info: &deb::DebInfo, plan: &apt::Plan) {
@@ -386,6 +542,9 @@ impl PackageCard {
     }
 
     pub fn set_blocked(&self, message: &str) {
+        self.status_chip.set_text("Blocked");
+        self.status_chip
+            .set_css_classes(&["debdrop-chip", "debdrop-status-blocked"]);
         self.deps.reset(message);
     }
 }

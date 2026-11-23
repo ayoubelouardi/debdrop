@@ -36,25 +36,28 @@ the card and reveals a banner with a one-line hint plus a **Details** button (or
 │  AdwClamp (max 780) → GtkStack                             │
 │  Card page: AdwPreferencesPage                             │
 │   ┌────────────────────────────────────────────────────┐   │
-│   │ Package                                 [copy ⧉]   │   │
-│   │   foo  ·  all  ·  utils  ·  1.2 MiB installed     │   │
-│   │   File path            /abs/path/foo_1.0.deb      │   │
-│   │   Maintainer           Name <email>               │   │
-│   │   Description          long text…                 │   │
-│   │   Status               Installed 1.0.0            │   │
-│   │   Configuration        Asks configuration…        │   │  (only if debconf)
+│   │ [64px Icon]  Visual Studio Code                    │   │  Hero Card
+│   │              code · amd64                          │   │
+│   │              [v1.85.0] [amd64] [120 MiB] [Ready]   │   │  Status Chips
+│   ├────────────────────────────────────────────────────┤   │
+│   │ Package Details                                    │   │
+│   │   File path            /abs/path/foo_1.0.deb  [⧉] │   │
+│   │   Maintainer           Name <email>                │   │
+│   │   Homepage             https://example.com   [🌐]  │   │
+│   │   Contents             42 files installed    [🔍]  │   │
+│   │   Description          long text…                  │   │
+│   │   Configuration        Asks configuration…         │   │  (only if debconf)
 │   ├────────────────────────────────────────────────────┤   │
 │   │ Dependencies                [Show]/[Hide]          │   │
 │   │   (group description = plan headline)              │   │
-│   │   libc6 (>= 2.34)   required                      │   │
-│   │   libfoo3           will be installed              │   │
+│   │   libc6 (>= 2.34)   required                       │   │
+│   │   libfoo3           will be installed               │   │
 │   ├────────────────────────────────────────────────────┤   │
-│   │ Maintainer scripts                [View…]          │   │  (hidden if none)
-│   │   ⚠ postinst                                      │   │
-│   │     Runs with root privileges during installation  │   │
+│   │ Security & Scripts                                 │   │
+│   │   ✓ Clean package (No root scripts) / ⚠ postinst   │   │
 │   └────────────────────────────────────────────────────┘   │
 ├────────────────────────────────────────────────────────────┤
-│ [Choose File…]                       [Remove]  [Install]   │  bottom bar
+│ [Choose File…]              [Launch] [Remove] [Install]    │  bottom bar
 └────────────────────────────────────────────────────────────┘
 ```
 

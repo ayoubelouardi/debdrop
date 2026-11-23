@@ -46,6 +46,7 @@ pub struct AppWindow {
     busy_label: gtk::Label,
     primary: gtk::Button,
     remove: gtk::Button,
+    launch: gtk::Button,
     choose_bar: gtk::Button,
 
     info: RefCell<Option<deb::DebInfo>>,
@@ -155,6 +156,9 @@ impl AppWindow {
 
         let choose_bar = gtk::Button::with_label("Choose File…");
         choose_bar.add_css_class("flat");
+        let launch = gtk::Button::with_label("Launch");
+        launch.add_css_class("suggested-action");
+        launch.set_visible(false);
         let remove = gtk::Button::with_label("Remove");
         remove.add_css_class("destructive-action");
         remove.set_visible(false);
@@ -172,6 +176,7 @@ impl AppWindow {
         bar.set_margin_end(14);
         bar.append(&choose_bar);
         bar.append(&spacer);
+        bar.append(&launch);
         bar.append(&remove);
         bar.append(&primary);
         bar.set_visible(false);
@@ -199,6 +204,7 @@ impl AppWindow {
             busy_label,
             primary,
             remove,
+            launch,
             choose_bar,
             info: RefCell::new(None),
             plan: RefCell::new(None),
@@ -249,6 +255,22 @@ impl AppWindow {
             rc.card
                 .scripts_button()
                 .connect_clicked(move |_| this.show_scripts_dialog());
+        }
+        {
+            let this = Rc::clone(rc);
+            rc.card
+                .homepage_button()
+                .connect_clicked(move |_| this.open_homepage());
+        }
+        {
+            let this = Rc::clone(rc);
+            rc.card
+                .files_button()
+                .connect_clicked(move |_| this.show_files_dialog());
+        }
+        {
+            let this = Rc::clone(rc);
+            rc.launch.connect_clicked(move |_| this.launch_app());
         }
         {
             let this = Rc::clone(rc);
@@ -379,9 +401,19 @@ impl AppWindow {
                 .map(|s| s.installed)
                 .unwrap_or(false);
             self.remove.set_sensitive(installed);
+            let can_launch = installed
+                && self
+                    .info
+                    .borrow()
+                    .as_ref()
+                    .and_then(|i| i.desktop.as_ref())
+                    .and_then(|d| d.exec.as_ref())
+                    .is_some();
+            self.launch.set_sensitive(can_launch);
         } else {
             self.primary.set_sensitive(false);
             self.remove.set_sensitive(false);
+            self.launch.set_sensitive(false);
         }
     }
 
@@ -428,6 +460,7 @@ impl AppWindow {
                 self.primary.set_label("Checking…");
                 self.primary.set_sensitive(false);
                 self.remove.set_visible(false);
+                self.launch.set_visible(false);
                 self.banner.set_revealed(false);
                 self.banner_mode.set(BannerMode::None);
                 self.log.clear();
@@ -517,10 +550,22 @@ impl AppWindow {
             apt::Action::Downgrade => format!("Downgrade to {version}"),
         };
         let installed = state.installed;
-        self.card.set_installed(&state);
+        self.card.set_installed(&state, action);
         self.primary.set_label(&label);
         self.remove.set_visible(installed);
         self.remove.set_sensitive(installed && !self.busy.get());
+
+        let can_launch = installed
+            && self
+                .info
+                .borrow()
+                .as_ref()
+                .and_then(|i| i.desktop.as_ref())
+                .and_then(|d| d.exec.as_ref())
+                .is_some();
+        self.launch.set_visible(can_launch);
+        self.launch.set_sensitive(can_launch && !self.busy.get());
+
         self.action.set(action);
         self.installed_ready.set(true);
         *self.installed.borrow_mut() = Some(state);
@@ -917,6 +962,142 @@ impl AppWindow {
             .license_type(gtk::License::MitX11)
             .build();
         about.present(Some(&self.window));
+    }
+
+    fn open_homepage(&self) {
+        let binding = self.info.borrow();
+        let Some(info) = binding.as_ref() else {
+            return;
+        };
+        let Some(url) = &info.homepage else {
+            return;
+        };
+        let ctx = gio::AppLaunchContext::NONE;
+        if let Err(e) = gio::AppInfo::launch_default_for_uri(url, ctx) {
+            self.toast(&format!("Could not open website: {e}"));
+        }
+    }
+
+    fn launch_app(&self) {
+        let (exec, title) = {
+            let binding = self.info.borrow();
+            let Some(info) = binding.as_ref() else {
+                return;
+            };
+            let Some(desktop) = &info.desktop else {
+                return;
+            };
+            let Some(exec) = &desktop.exec else {
+                return;
+            };
+            (exec.clone(), info.display_title())
+        };
+        let mut parts = exec.split_whitespace();
+        let Some(bin) = parts.next() else {
+            return;
+        };
+        let args: Vec<_> = parts.collect();
+        match std::process::Command::new(bin).args(&args).spawn() {
+            Ok(_) => self.toast(&format!("Launched {title}")),
+            Err(e) => self.toast(&format!("Failed to launch {bin}: {e}")),
+        }
+    }
+
+    fn show_files_dialog(&self) {
+        let (files, title) = {
+            let borrow = self.info.borrow();
+            let Some(info) = borrow.as_ref() else {
+                return;
+            };
+            (info.files.clone(), info.display_title())
+        };
+
+        if files.is_empty() {
+            self.toast("No package file information available");
+            return;
+        }
+
+        let dialog = adw::Dialog::builder()
+            .title(format!("Contents: {title}"))
+            .content_width(720)
+            .content_height(500)
+            .build();
+
+        let header = adw::HeaderBar::new();
+        header.set_show_end_title_buttons(true);
+
+        let search_entry = gtk::SearchEntry::new();
+        search_entry.set_hexpand(true);
+        search_entry.set_placeholder_text(Some("Filter files…"));
+
+        let count_label = gtk::Label::new(Some(&format!("{} files", files.len())));
+        count_label.add_css_class("dim-label");
+        count_label.set_margin_end(8);
+
+        let top_box = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+        top_box.set_margin_top(8);
+        top_box.set_margin_bottom(8);
+        top_box.set_margin_start(12);
+        top_box.set_margin_end(12);
+        top_box.append(&search_entry);
+        top_box.append(&count_label);
+
+        let buffer = gtk::TextBuffer::new(None);
+        buffer.set_text(&files.join("\n"));
+
+        let view = gtk::TextView::builder()
+            .buffer(&buffer)
+            .editable(false)
+            .cursor_visible(false)
+            .monospace(true)
+            .wrap_mode(gtk::WrapMode::None)
+            .top_margin(8)
+            .bottom_margin(8)
+            .left_margin(12)
+            .right_margin(12)
+            .build();
+        view.add_css_class("debdrop-file-tree");
+
+        let scrolled = gtk::ScrolledWindow::builder()
+            .hscrollbar_policy(gtk::PolicyType::Automatic)
+            .vscrollbar_policy(gtk::PolicyType::Automatic)
+            .child(&view)
+            .vexpand(true)
+            .hexpand(true)
+            .build();
+        scrolled.add_css_class("card");
+        scrolled.set_margin_start(12);
+        scrolled.set_margin_end(12);
+        scrolled.set_margin_bottom(12);
+
+        {
+            let buffer = buffer.clone();
+            let all_files = files.clone();
+            let count_label = count_label.clone();
+            search_entry.connect_search_changed(move |entry| {
+                let query = entry.text().to_lowercase();
+                if query.trim().is_empty() {
+                    buffer.set_text(&all_files.join("\n"));
+                    count_label.set_text(&format!("{} files", all_files.len()));
+                } else {
+                    let filtered: Vec<&str> = all_files
+                        .iter()
+                        .filter(|f| f.to_lowercase().contains(&query))
+                        .map(String::as_str)
+                        .collect();
+                    buffer.set_text(&filtered.join("\n"));
+                    count_label.set_text(&format!("{} of {} files", filtered.len(), all_files.len()));
+                }
+            });
+        }
+
+        let content = gtk::Box::new(gtk::Orientation::Vertical, 0);
+        content.append(&header);
+        content.append(&top_box);
+        content.append(&scrolled);
+
+        dialog.set_child(Some(&content));
+        dialog.present(Some(&self.window));
     }
 }
 

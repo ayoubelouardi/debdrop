@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC
+    "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+    "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+
+<!--
+  DebDrop custom Polkit action.
+  Installed to: /usr/share/polkit-1/actions/io.github.debdrop.policy
+
+  Binds the action ID "io.github.debdrop.install" exclusively to the
+  /usr/bin/apt-get binary (via org.freedesktop.policykit.exec.path annotation),
+  providing a clear, auditable privilege boundary that only covers APT package
+  management — nothing else.
+
+  This replaces the generic org.freedesktop.policykit.exec action used in
+  earlier versions. See docs/decisions/0004-custom-polkit-action.md.
+-->
+
+<policyconfig>
+  <vendor>DebDrop</vendor>
+  <vendor_url>https://github.com/ayoubelouardi/debdrop</vendor_url>
+
+  <action id="io.github.debdrop.install">
+    <description>Install, reinstall, upgrade, or downgrade a Debian package</description>
+    <message>DebDrop needs your password to install this package.</message>
+    <icon_name>system-software-install</icon_name>
+
+    <defaults>
+      <!-- Inactive sessions (e.g. remote SSH without active display): require admin -->
+      <allow_inactive>auth_admin</allow_inactive>
+      <!-- Active local sessions: require admin, with optional agent-cached auth -->
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/apt-get</annotate>
+    <annotate key="org.freedesktop.policykit.exec.allow_gui">true</annotate>
+  </action>
+
+  <action id="io.github.debdrop.remove">
+    <description>Remove a Debian package</description>
+    <message>DebDrop needs your password to remove this package.</message>
+    <icon_name>edit-delete</icon_name>
+
+    <defaults>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/apt-get</annotate>
+    <annotate key="org.freedesktop.policykit.exec.allow_gui">true</annotate>
+  </action>
+
+  <action id="io.github.debdrop.update">
+    <description>Refresh APT package lists</description>
+    <message>DebDrop needs your password to refresh package lists.</message>
+    <icon_name>view-refresh</icon_name>
+
+    <defaults>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/apt-get</annotate>
+    <annotate key="org.freedesktop.policykit.exec.allow_gui">true</annotate>
+  </action>
+</policyconfig>

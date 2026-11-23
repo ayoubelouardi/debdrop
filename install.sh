@@ -50,3 +50,8 @@ echo "  ${DATA}/icons/hicolor/scalable/apps/debdrop.svg"
 echo
 echo "Ensure ${BIN} is on PATH, then launch DebDrop from your menu."
 echo "Remove with: ./install.sh --uninstall"
+echo
+echo "NOTE: The Polkit action file (io.github.debdrop.policy) requires a system-wide"
+echo "installation to /usr/share/polkit-1/actions/. This is handled automatically by"
+echo "the distributable .deb package (./utilities.sh deb)."
+echo "For user-local installs, DebDrop falls back to the generic pkexec policy."

@@ -5,8 +5,8 @@ edition = "2021"
 rust-version = "1.85"
 description = "Blazingly fast, transparent .deb package inspector and installer for Linux"
 license = "MIT"
-repository = "https://github.com/debdrop/debdrop"
-homepage = "https://github.com/debdrop/debdrop"
+repository = "https://github.com/ayoubelouardi/debdrop"
+homepage = "https://github.com/ayoubelouardi/debdrop"
 keywords = ["debian", "deb", "package-manager", "gtk4", "libadwaita"]
 categories = ["gui", "command-line-utilities", "development-tools"]
 
@@ -21,3 +21,21 @@ libc = "0.2"
 lto = true
 codegen-units = 1
 strip = true
+
+[package.metadata.deb]
+maintainer = "Ayoub El Ouardi <ayoub@example.com>"
+copyright = "2026 DebDrop contributors"
+license-file = ["LICENSE", "4"]
+extended-description = """\
+DebDrop is a fast, transparent .deb package inspector and installer for Linux workstations.
+It simulates transactions with APT, reveals root maintainer scripts, and streams
+real output without telemetry or bloat."""
+depends = "$auto, policykit-1 | polkitd"
+section = "utils"
+priority = "optional"
+assets = [
+    ["target/release/debdrop", "usr/bin/", "755"],
+    ["resources/debdrop.desktop", "usr/share/applications/", "644"],
+    ["resources/debdrop.svg", "usr/share/icons/hicolor/scalable/apps/", "644"],
+    ["resources/io.github.debdrop.policy", "usr/share/polkit-1/actions/", "644"],
+]
